@@ -64,10 +64,11 @@ def get_file_data(files_dict):
 
 def get_index_filename(ch):
     """Возвращает имя файла индекса по первой букве"""
+    cyr = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
     if 'a' <= ch <= 'z':
         return f"{ord(ch) - ord('a'):02d}"
-    elif 'а' <= ch <= 'я':
-        return f"{ord(ch) - ord('а') + 26:02d}"
+    elif ch in cyr:
+        return f"{cyr.index(ch) + 26:02d}"
     return None
 
 
@@ -109,23 +110,35 @@ def build_new_segments(words, target_words):
 def update_index_file(index_path, target_words, new_segments):
     """Обновляет один индексный файл (index/XX)."""
     lines = read_lines(index_path)
-    updated, remaining = [], set(target_words)
+    kept_lines = []
+    word_data = {}
 
     for line in lines:
         stripped = line.strip()
         if ":" not in stripped:
-            updated.append(line)
+            kept_lines.append(line)
             continue
         word, data = stripped.split(":", 1)
         word = word.strip()
-        if word in target_words:
-            updated.append(f"{word}: {data.strip()} {new_segments[word]}\n")
-            remaining.discard(word)
-        else:
-            updated.append(line)
+        if not word:
+            kept_lines.append(line)
+            continue
+        word_data[word] = data.strip()
 
-    for word in sorted(remaining):
-        updated.append(f"{word}: {new_segments[word]}\n")
+    for word in target_words:
+        if word in word_data:
+            data_parts = [word_data[word], new_segments[word]]
+            word_data[word] = " ".join(part for part in data_parts if part)
+        else:
+            word_data[word] = new_segments[word]
+
+    for word, segment in new_segments.items():
+        if word not in word_data:
+            word_data[word] = segment
+
+    updated = list(kept_lines)
+    for word in sorted(word_data):
+        updated.append(f"{word}: {word_data[word]}\n")
 
     tmp_path = index_path + ".tmp"
     write_lines(tmp_path, updated)
@@ -177,9 +190,14 @@ def add(root_dir, files):
     splits_file = os.path.join(files_dir, '.splits')
 
     files_dict = {}
+    seen_path = set()
     # Для каждого файла, переданного в параметрах
     for new_file in files:
         file_realpath = os.path.realpath(os.path.abspath(new_file))
+        if file_realpath in seen_path:
+            print(f'File {new_file} already handled in this call, skipping')
+            continue
+        seen_path.add(file_realpath)
 
         # Проверяем, что такой файл существует
         if not os.path.exists(new_file):
