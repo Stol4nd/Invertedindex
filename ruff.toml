@@ -1,0 +1,8 @@
+line-length = 120 
+
+[lint.mccabe]
+max-complexity = 5
+
+[lint]
+extend-select = ["E501", "C901"]
+
